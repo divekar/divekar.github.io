@@ -3,129 +3,401 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Workflowy Publisher</title>
+    <title>WorkFlowy Date Publisher</title>
     <style>
-        :root {
-            --bg: #ffffff; --text: #333; --accent: #007bff; --note: #666; --border: #eee;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        @media (prefers-color-scheme: dark) {
-            :root { --bg: #1a1a1a; --text: #e0e0e0; --accent: #4dabff; --note: #aaa; --border: #333; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
         }
-        body { 
-            font-family: -apple-system, system-ui, sans-serif; line-height: 1.6; 
-            max-width: 800px; margin: 0 auto; padding: 2rem;
-            background: var(--bg); color: var(--text); transition: 0.3s;
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
         }
-        header { border-bottom: 2px solid var(--border); margin-bottom: 2rem; padding-bottom: 1rem; }
-        .controls { display: flex; gap: 10px; margin-bottom: 20px; }
-        input { 
-            flex-grow: 1; padding: 10px; border: 1px solid var(--border); 
-            border-radius: 6px; background: var(--bg); color: var(--text);
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 28px;
         }
-        button { 
-            padding: 10px 20px; cursor: pointer; background: var(--accent); 
-            color: white; border: none; border-radius: 6px; font-weight: bold;
+        .input-group {
+            margin-bottom: 20px;
         }
-        ul { list-style: none; padding-left: 1.5rem; border-left: 1px solid var(--border); }
-        li { margin: 0.8rem 0; position: relative; }
-        li::before { content: "•"; position: absolute; left: -1.2rem; color: var(--accent); opacity: 0.5; }
-        .note { display: block; font-size: 0.9em; color: var(--note); font-style: italic; white-space: pre-wrap; margin-top: 4px; }
-        .hidden { display: none; }
-        #status { font-size: 0.8em; margin-top: 10px; }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 8px;
+            display: none;
+        }
+        .result.success {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            display: block;
+        }
+        .result.error {
+            background: #ffebee;
+            border-left: 4px solid #f44336;
+            display: block;
+        }
+        .result.loading {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            display: block;
+        }
+        .result-label {
+            color: #666;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        .result-value {
+            font-size: 24px;
+            font-weight: bold;
+            word-break: break-all;
+        }
+        .result.success .result-value {
+            color: #2e7d32;
+        }
+        .result.error .result-value {
+            color: #c62828;
+        }
+        .result.loading .result-value {
+            color: #1565c0;
+        }
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #2196f3;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #666;
+            line-height: 1.6;
+        }
+        .info code {
+            background: #eee;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
     </style>
 </head>
 <body>
-
-<header>
-    <h1>Workflowy Viewer</h1>
-    <div class="controls">
-        <input type="text" id="urlInput" placeholder="Paste Workflowy Secret Link...">
-        <button onclick="loadFromInput()">Load</button>
-    </div>
-    <input type="text" id="searchInput" placeholder="Search nodes..." oninput="filterNodes()" class="hidden">
-    <div id="status"></div>
-</header>
-
-<div id="viewer"></div>
-
-<script>
-    const viewer = document.getElementById('viewer');
-    const status = document.getElementById('status');
-    const searchInput = document.getElementById('searchInput');
-
-    async function fetchWorkflowy(url) {
-        if (!url) return;
-        status.textContent = "Fetching from Workflowy...";
+    <div class="container">
+        <h1>📝 WorkFlowy Date Publisher</h1>
         
-        try {
-            const cleanUrl = url.replace(/\/$/, "");
-            const opmlUrl = cleanUrl.endsWith('.opml') ? cleanUrl : `${cleanUrl}.opml`;
-            const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(opmlUrl)}`;
-            
-            const response = await fetch(proxy);
-            const data = await response.json();
-            
-            const parser = new DOMParser();
-            const xml = parser.parseFromString(data.contents, "text/xml");
-            const outlines = xml.querySelectorAll('body > outline');
+        <div class="input-group">
+            <label for="workflowyUrl">WorkFlowy Share URL</label>
+            <input 
+                type="text" 
+                id="workflowyUrl" 
+                placeholder="https://workflowy.com/s/xyz123..." 
+                autocomplete="off"
+            >
+        </div>
+        
+        <button onclick="fetchAndPublish()">Fetch Date & Publish</button>
+        
+        <div id="result" class="result">
+            <div class="result-label">Date Found</div>
+            <div class="result-value" id="resultValue"></div>
+        </div>
+        
+        <div class="info">
+            <strong>How to use:</strong>
+            <ol style="margin-left: 20px; margin-top: 10px;">
+                <li>Share your WorkFlowy node publicly</li>
+                <li>Copy the public share URL</li>
+                <li>Paste it above and click "Fetch Date & Publish"</li>
+                <li>The extracted date will be displayed</li>
+            </ol>
+        </div>
+    </div>
 
-            if (outlines.length === 0) throw new Error("No data found. Is the link public?");
-
-            viewer.innerHTML = "";
-            render(outlines, viewer);
-            
-            status.textContent = "Done.";
-            searchInput.classList.remove('hidden');
-            
-            // Update URL so user can share this specific view
-            const newUrl = new URL(window.location);
-            newUrl.searchParams.set('s', url);
-            window.history.pushState({}, '', newUrl);
-
-        } catch (e) {
-            status.innerHTML = `<b style="color:red">Error:</b> ${e.message}`;
+    <script>
+        // Get URL parameter if provided
+        const params = new URLSearchParams(window.location.search);
+        const urlParam = params.get('url');
+        if (urlParam) {
+            document.getElementById('workflowyUrl').value = decodeURIComponent(urlParam);
+            // Optionally auto-fetch
+            setTimeout(fetchAndPublish, 500);
         }
-    }
 
-    function render(nodes, container) {
-        const ul = document.createElement('ul');
-        nodes.forEach(node => {
-            const li = document.createElement('li');
-            const text = node.getAttribute('text');
-            const note = node.getAttribute('_note');
+        async function fetchAndPublish() {
+            const urlInput = document.getElementById('workflowyUrl').value.trim();
+            const resultDiv = document.getElementById('result');
+            const resultValue = document.getElementById('resultValue');
+
+            if (!urlInput) {
+                showError('Please enter a WorkFlowy URL');
+                return;
+            }
+
+            // Validate URL
+            if (!isValidWorkFlowyUrl(urlInput)) {
+                showError('Please enter a valid WorkFlowy share URL');
+                return;
+            }
+
+            showLoading('Fetching WorkFlowy data...');
+
+            try {
+                const date = await extractDateFromWorkFlowy(urlInput);
+                
+                if (date) {
+                    showSuccess(date);
+                    // Update page title and URL
+                    document.title = `Date: ${date}`;
+                    window.history.replaceState({}, '', `?url=${encodeURIComponent(urlInput)}`);
+                } else {
+                    showError('No date found in the WorkFlowy node');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showError(`Error: ${error.message}`);
+            }
+        }
+
+        function isValidWorkFlowyUrl(url) {
+            return url.includes('workflowy.com') || 
+                   url.includes('www.workflowy.com') ||
+                   /^[a-zA-Z0-9\-_]{6,}$/.test(url); // Allow just the share ID
+        }
+
+        async function extractDateFromWorkFlowy(urlInput) {
+            let url = urlInput;
             
-            li.innerHTML = `<span>${text}</span>`;
-            if (note) li.innerHTML += `<span class="note">${note}</span>`;
+            // Convert share ID to full URL if needed
+            if (!url.startsWith('http')) {
+                url = `https://workflowy.com/s/${url}`;
+            }
+
+            // Ensure proper share URL format
+            if (!url.includes('/s/')) {
+                url = url.replace('workflowy.com/', 'workflowy.com/s/');
+            }
+
+            try {
+                // Try direct fetch first
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: Unable to access WorkFlowy page`);
+                }
+
+                const html = await response.text();
+                
+                // Extract date from various common date formats
+                const dates = extractDatesFromContent(html);
+                
+                if (dates.length > 0) {
+                    // Return the first (most likely main) date found
+                    return formatDate(dates[0]);
+                }
+
+                // If no dates found, try to extract from structured data
+                const structuredDate = extractStructuredDate(html);
+                if (structuredDate) {
+                    return structuredDate;
+                }
+
+                return null;
+            } catch (error) {
+                // If CORS fails, try alternative approach
+                if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
+                    return await fetchViaProxy(urlInput);
+                }
+                throw error;
+            }
+        }
+
+        function extractDatesFromContent(html) {
+            const datePatterns = [
+                // ISO format: 2024-02-20
+                /\b(\d{4})-(\d{2})-(\d{2})\b/g,
+                // US format: 02/20/2024
+                /\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g,
+                // Written format: February 20, 2024
+                /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})\b/gi,
+                // Written format: 20 February 2024
+                /\b(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b/gi,
+                // Today/Tomorrow indicators with dates
+                /\b(Today|Tomorrow)\s*[-:]?\s*(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})\b/gi,
+            ];
+
+            const dates = [];
+            let matches;
+
+            for (const pattern of datePatterns) {
+                matches = html.matchAll(pattern);
+                for (const match of matches) {
+                    dates.push(match[0]);
+                }
+            }
+
+            return dates;
+        }
+
+        function extractStructuredDate(html) {
+            // Look for common date attribute patterns
+            const patterns = [
+                /data-date="([^"]+)"/i,
+                /date="([^"]+)"/i,
+                /<time[^>]*datetime="([^"]+)"/i,
+                /"date":\s*"([^"]+)"/i,
+            ];
+
+            for (const pattern of patterns) {
+                const match = html.match(pattern);
+                if (match) {
+                    return formatDate(match[1]);
+                }
+            }
+
+            return null;
+        }
+
+        function formatDate(dateString) {
+            try {
+                // Try to parse the date
+                const date = new Date(dateString);
+                
+                if (isNaN(date.getTime())) {
+                    // If parsing fails, return the original string
+                    return dateString.slice(0, 200); // Limit length
+                }
+
+                // Return formatted date
+                return date.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+            } catch {
+                return dateString.slice(0, 200);
+            }
+        }
+
+        async function fetchViaProxy(urlInput) {
+            // Fallback: Try CORS proxy if available
+            let url = urlInput;
+            if (!url.startsWith('http')) {
+                url = `https://workflowy.com/s/${url}`;
+            }
+
+            const proxyUrl = `https://cors-anywhere.herokuapp.com/${url}`;
             
-            const children = node.querySelectorAll(':scope > outline');
-            if (children.length > 0) render(children, li);
+            try {
+                const response = await fetch(proxyUrl);
+                const html = await response.text();
+                const dates = extractDatesFromContent(html);
+                
+                if (dates.length > 0) {
+                    return formatDate(dates[0]);
+                }
+                
+                return null;
+            } catch {
+                throw new Error('Unable to fetch data. Make sure the WorkFlowy share is public.');
+            }
+        }
+
+        function showLoading(message) {
+            const resultDiv = document.getElementById('result');
+            const resultValue = document.getElementById('resultValue');
             
-            ul.appendChild(li);
+            resultDiv.className = 'result loading';
+            resultValue.innerHTML = `<span class="spinner"></span>${message}`;
+        }
+
+        function showSuccess(value) {
+            const resultDiv = document.getElementById('result');
+            const resultValue = document.getElementById('resultValue');
+            
+            resultDiv.className = 'result success';
+            resultValue.textContent = value;
+        }
+
+        function showError(message) {
+            const resultDiv = document.getElementById('result');
+            const resultValue = document.getElementById('resultValue');
+            
+            resultDiv.className = 'result error';
+            resultValue.textContent = message;
+        }
+
+        // Allow Enter key to fetch
+        document.getElementById('workflowyUrl').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                fetchAndPublish();
+            }
         });
-        container.appendChild(ul);
-    }
-
-    function filterNodes() {
-        const query = searchInput.value.toLowerCase();
-        const items = viewer.querySelectorAll('li');
-        items.forEach(li => {
-            const text = li.firstElementChild.textContent.toLowerCase();
-            li.style.display = text.includes(query) ? "" : "none";
-        });
-    }
-
-    function loadFromInput() {
-        fetchWorkflowy(document.getElementById('urlInput').value);
-    }
-
-    // Auto-load if URL parameter 's' exists
-    const params = new URLSearchParams(window.location.search);
-    if (params.has('s')) {
-        const url = params.get('s');
-        document.getElementById('urlInput').value = url;
-        fetchWorkflowy(url);
-    }
-</script>
-
+    </script>
 </body>
 </html>
