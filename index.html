@@ -3,82 +3,129 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Workflowy Node Viewer</title>
+    <title>Workflowy Publisher</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #333; }
-        h1 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
-        ul { list-style-type: none; padding-left: 20px; }
-        li { margin: 10px 0; position: relative; }
-        li::before { content: "•"; color: #999; position: absolute; left: -15px; }
-        .note { font-size: 0.9em; color: #666; display: block; margin-top: 4px; font-style: italic; }
-        #loading { color: #007bff; }
+        :root {
+            --bg: #ffffff; --text: #333; --accent: #007bff; --note: #666; --border: #eee;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root { --bg: #1a1a1a; --text: #e0e0e0; --accent: #4dabff; --note: #aaa; --border: #333; }
+        }
+        body { 
+            font-family: -apple-system, system-ui, sans-serif; line-height: 1.6; 
+            max-width: 800px; margin: 0 auto; padding: 2rem;
+            background: var(--bg); color: var(--text); transition: 0.3s;
+        }
+        header { border-bottom: 2px solid var(--border); margin-bottom: 2rem; padding-bottom: 1rem; }
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; }
+        input { 
+            flex-grow: 1; padding: 10px; border: 1px solid var(--border); 
+            border-radius: 6px; background: var(--bg); color: var(--text);
+        }
+        button { 
+            padding: 10px 20px; cursor: pointer; background: var(--accent); 
+            color: white; border: none; border-radius: 6px; font-weight: bold;
+        }
+        ul { list-style: none; padding-left: 1.5rem; border-left: 1px solid var(--border); }
+        li { margin: 0.8rem 0; position: relative; }
+        li::before { content: "•"; position: absolute; left: -1.2rem; color: var(--accent); opacity: 0.5; }
+        .note { display: block; font-size: 0.9em; color: var(--note); font-style: italic; white-space: pre-wrap; margin-top: 4px; }
+        .hidden { display: none; }
+        #status { font-size: 0.8em; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-    <h1>Workflowy Content</h1>
-    <div id="content">
-        <p id="loading">Paste a shared Workflowy URL to begin...</p>
+<header>
+    <h1>Workflowy Viewer</h1>
+    <div class="controls">
+        <input type="text" id="urlInput" placeholder="Paste Workflowy Secret Link...">
+        <button onclick="loadFromInput()">Load</button>
     </div>
+    <input type="text" id="searchInput" placeholder="Search nodes..." oninput="filterNodes()" class="hidden">
+    <div id="status"></div>
+</header>
 
-    <script>
-        // Example URL: https://workflowy.com/s/your-shared-id
-        async function fetchWorkflowy(url) {
-            const contentDiv = document.getElementById('content');
+<div id="viewer"></div>
+
+<script>
+    const viewer = document.getElementById('viewer');
+    const status = document.getElementById('status');
+    const searchInput = document.getElementById('searchInput');
+
+    async function fetchWorkflowy(url) {
+        if (!url) return;
+        status.textContent = "Fetching from Workflowy...";
+        
+        try {
+            const cleanUrl = url.replace(/\/$/, "");
+            const opmlUrl = cleanUrl.endsWith('.opml') ? cleanUrl : `${cleanUrl}.opml`;
+            const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(opmlUrl)}`;
             
-            try {
-                // To bypass CORS (Cross-Origin Resource Sharing) blocks, 
-                // we use a simple proxy to fetch the OPML data.
-                const opmlUrl = url.endsWith('.opml') ? url : url + '.opml';
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(opmlUrl)}`;
-                
-                const response = await fetch(proxyUrl);
-                const data = await response.json();
-                
-                const parser = new DOMParser();
-                const xmlDoc = parser.parseFromString(data.contents, "text/xml");
-                const outlines = xmlDoc.querySelectorAll('body > outline');
+            const response = await fetch(proxy);
+            const data = await response.json();
+            
+            const parser = new DOMParser();
+            const xml = parser.parseFromString(data.contents, "text/xml");
+            const outlines = xml.querySelectorAll('body > outline');
 
-                contentDiv.innerHTML = ''; // Clear loading text
-                renderOutlines(outlines, contentDiv);
-                
-            } catch (error) {
-                contentDiv.innerHTML = `<p style="color:red">Error: Could not fetch data. Make sure the link is "Shared" and public.</p>`;
-                console.error(error);
-            }
+            if (outlines.length === 0) throw new Error("No data found. Is the link public?");
+
+            viewer.innerHTML = "";
+            render(outlines, viewer);
+            
+            status.textContent = "Done.";
+            searchInput.classList.remove('hidden');
+            
+            // Update URL so user can share this specific view
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.set('s', url);
+            window.history.pushState({}, '', newUrl);
+
+        } catch (e) {
+            status.innerHTML = `<b style="color:red">Error:</b> ${e.message}`;
         }
+    }
 
-        function renderOutlines(outlines, container) {
-            const ul = document.createElement('ul');
-            outlines.forEach(outline => {
-                const li = document.createElement('li');
-                li.textContent = outline.getAttribute('text');
-                
-                // Check for notes
-                const note = outline.getAttribute('_note');
-                if (note) {
-                    const noteSpan = document.createElement('span');
-                    noteSpan.className = 'note';
-                    noteSpan.textContent = note;
-                    li.appendChild(noteSpan);
-                }
+    function render(nodes, container) {
+        const ul = document.createElement('ul');
+        nodes.forEach(node => {
+            const li = document.createElement('li');
+            const text = node.getAttribute('text');
+            const note = node.getAttribute('_note');
+            
+            li.innerHTML = `<span>${text}</span>`;
+            if (note) li.innerHTML += `<span class="note">${note}</span>`;
+            
+            const children = node.querySelectorAll(':scope > outline');
+            if (children.length > 0) render(children, li);
+            
+            ul.appendChild(li);
+        });
+        container.appendChild(ul);
+    }
 
-                // Recursively handle children
-                const children = outline.querySelectorAll(':scope > outline');
-                if (children.length > 0) {
-                    renderOutlines(children, li);
-                }
-                
-                ul.appendChild(li);
-            });
-            container.appendChild(ul);
-        }
+    function filterNodes() {
+        const query = searchInput.value.toLowerCase();
+        const items = viewer.querySelectorAll('li');
+        items.forEach(li => {
+            const text = li.firstElementChild.textContent.toLowerCase();
+            li.style.display = text.includes(query) ? "" : "none";
+        });
+    }
 
-        // AUTO-LOAD: Replace with your actual shared URL
-        const mySharedUrl = 'YOUR_WORKFLOW_SHARED_URL_HERE';
-        if (mySharedUrl !== 'YOUR_WORKFLOW_SHARED_URL_HERE') {
-            fetchWorkflowy(mySharedUrl);
-        }
-    </script>
+    function loadFromInput() {
+        fetchWorkflowy(document.getElementById('urlInput').value);
+    }
+
+    // Auto-load if URL parameter 's' exists
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('s')) {
+        const url = params.get('s');
+        document.getElementById('urlInput').value = url;
+        fetchWorkflowy(url);
+    }
+</script>
+
 </body>
 </html>
